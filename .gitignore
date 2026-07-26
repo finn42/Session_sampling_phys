@@ -1,0 +1,10 @@
+.ipynb_checkpoints/
+.DS_Store
+__pycache__/
+MinuteFiles/
+outfiles.zip
+outfiles/
+outfiles1/
+plots.zip
+session2/
+plots/

@@ -256,7 +256,6 @@ def unclip_minor(sig):
     return sig
 
 def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
- 
     # evaluate sampling parameters
     dt = np.nanmean(np.diff(sig.index))
     sf = round(1/dt)
@@ -265,7 +264,7 @@ def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
     df_sig = df_sig.rename(columns={0:'Raw'})
     # remove nans (they sneak in) and centre
     df_sig = df_sig.loc[df_sig['Raw'].notna()]-df_sig.loc[df_sig['Raw'].notna()].mean()
-    
+
     #prep derivatives of respiration signal
     newResp = pd.DataFrame(index = df_sig.index)
     if not filtered:
@@ -283,7 +282,7 @@ def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
     # set thresholds according the signal distributions
     InspThresh = newResp['Diff1'].loc[newResp['Diff1']>0].mean()*sf*vel_c
     VelThresh = InspThresh/sf; # to exclude very small bumps in chest expansion
-    
+
     # catch inspirations from zero crossings
     cutoff = x_hz
     nyq = 0.5 * sf 
@@ -293,33 +292,34 @@ def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
     newResp['Flatten'] = filtfilt(b, a, newResp['Filt'])
     newResp['Crossings'] = (np.sign(newResp['Filt']- filtfilt(b, a, newResp['Filt']))).diff()
     insp = newResp['Filt'].loc[newResp['Crossings']==2]
-    
-    # Define inspiration intervals on stretch derivative 
-    V = newResp['Diff1'].copy()
-    #V.loc[V<0] = 0
-    V.loc[V<VelThresh] = 0;
-    a = np.sign(V).diff()
-    segIn = a.index[a>0.5]-2/sf
+
+    # Define inspiration intervals on stretch derivative    
+    V = newResp.loc[:,['Diff1']].copy()
+
+    V.loc[V['Diff1']<VelThresh,'Diff1'] = 0
+    a = np.sign(V['Diff1']).diff()
+    segIn = np.round(a.index[a>0.5]-2/sf,3)
     segOut = a.index[a<-0.5]
-    
-    # cut possible incomplete insp intervals at ends
-    if segOut[0]<segIn[0]: 
-        V.loc[:segOut[0]] = 0
-        segOut = segOut[1:]
-    if len(segOut)<len(segIn): 
-        segIn = segIn[:len(segOut)]
-    
+
     # cut intervales of increase chest stretch without zero crossings
-    insp = insp[insp.index>segIn[0]]
+    insp = insp[insp.index>segIn[0]].copy()
+    toclear = []
     for j in range(len(segIn)):
         if len(insp.loc[segIn[j]:segOut[j]])<1:
-            V.loc[segIn[j]:segOut[j]] = 0
-    
+            lower = segIn[j]
+            upper = segOut[j]
+            if len(V.query('index>@lower and index<@upper').index)>0:
+                toclear.append(V.query('index>@lower and index<@upper'))
+    if len(toclear)>0:
+        cutting = pd.concat(toclear)
+        V.loc[cutting.index,'Diff1'] = 0
+
     # define breath intervals on remaining increases
-    a = np.sign(V).diff()
+    a = np.sign(V['Diff1']).diff()
     segIn = a.index[a>0.5]
     segOut = a.index[a<-0.5]
-    
+
+
     # cut possible incomplete insp intervals at ends again
     if segOut[0]<segIn[0]: 
         segOut = segOut[1:]
@@ -328,16 +328,17 @@ def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
 
     d = {'In': segIn,'Ex': segOut}
     Breaths = pd.DataFrame(data = d)
-    
-    
+
+
+
     # filter out common issues with these selected breaths
     minInspT = 0.3
     expMin = newResp['Raw'].quantile(0.25)
-    
+
     # additional filtering
-    Breaths2=breath_cycles(Breaths,newResp['Filt'])
+    Breaths2= breath_cycles(Breaths,newResp['Filt'])
     # cut "breaths" that expire from well below the baseline 
-    Breaths2 =  breath_cycles(Breaths2.loc[Breaths2['Ex_C']>expMin,['In','Ex']].reset_index(drop = True),newResp['Filt'])
+    Breaths2 = breath_cycles(Breaths2.loc[Breaths2['Ex_C']>expMin,['In','Ex']].reset_index(drop = True),newResp['Filt'])
     # cutting short expirations
     B=pd.DataFrame()
     J = Breaths2['Exp_T']>minInspT
@@ -348,10 +349,10 @@ def EQ_Inspiration_Extract(sig,filtered=False,vel_c = 0.35,x_hz = 0.2):
     B.loc[:,'Ex']= Breaths2.loc[J,'Ex'].values
     Breaths2 = breath_cycles(B,newResp['Filt'])
     # cutting short inspirations
-    Breaths2 =  breath_cycles(Breaths2.loc[Breaths2['Insp_T']>minInspT,['In','Ex']].reset_index(drop = True),newResp['Filt'])
+    Breaths2 = breath_cycles(Breaths2.loc[Breaths2['Insp_T']>minInspT,['In','Ex']].reset_index(drop = True),newResp['Filt'])
     # cutting expirations that end with higher values than they started
     thresh = 0
-    Breaths2 =  breath_cycles(Breaths2.loc[Breaths2['IE_DR']>thresh,['In','Ex']].reset_index(drop = True),newResp['Filt'])
+    Breaths2 = breath_cycles(Breaths2.loc[Breaths2['IE_DR']>thresh,['In','Ex']].reset_index(drop = True),newResp['Filt'])
 
     return Breaths2
 

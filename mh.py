@@ -81,7 +81,7 @@ def clean_IBI(beatTimes,beatIntervals,activitytype='default'):
     else:
         sig_v = pd.Series(beatIntervals)
     if activitytype=='default':
-        # make na beats that change more than 10% duration 
+        # make na beats that change more than 15% duration 
         sig_v_pre = np.log2(sig_v/sig_v.shift(1)).abs()
         sig_v_post = np.log2(sig_v.shift(-1)/sig_v).abs()
         sig_v = sig_v.mask((sig_v_post>0.15) & (sig_v_pre>0.15))
@@ -89,7 +89,7 @@ def clean_IBI(beatTimes,beatIntervals,activitytype='default'):
         sig_v = sig_v.mask(sig_v<360)
         sig_v = sig_v.mask(sig_v>1350)
     if activitytype=='resp':
-        # make na beats that change more than 25% duration, brass and winds need more forgiving thresholds
+        # make na beats that change more than 45% duration, brass and winds need more forgiving thresholds
         sig_v_pre = np.log2(sig_v/sig_v.shift(1)).abs()
         sig_v_post = np.log2(sig_v.shift(-1)/sig_v).abs()
         sig_v = sig_v.mask((sig_v_post>0.45) & (sig_v_pre>0.45))
@@ -97,7 +97,7 @@ def clean_IBI(beatTimes,beatIntervals,activitytype='default'):
         sig_v =sig_v.mask(sig_v<330)
         sig_v =sig_v.mask(sig_v>1500)
     if activitytype=='listener':
-        # make na beats that change more than 15% duration,  
+        # make na beats that change more than 20% duration,  
         sig_v_pre = np.log2(sig_v/sig_v.shift(1)).abs()
         sig_v_post = np.log2(sig_v.shift(-1)/sig_v).abs()
         sig_v = sig_v.mask((sig_v_post>0.2) & (sig_v_pre>0.2))
